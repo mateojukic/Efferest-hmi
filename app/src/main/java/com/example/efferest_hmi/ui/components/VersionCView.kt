@@ -45,11 +45,11 @@ fun VersionCView(
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             OutlinedButton(onClick = {
                 viewModel.decreaseGlobalTemp()
-                showStatus("Global temp decreased to: ${viewModel.uiState.value.globalTemperature}°C")
+                showStatus("Global temp decreased to -> ${viewModel.uiState.value.globalTemperature}°C")
             }) { Text("-") }
             OutlinedButton(onClick = {
                 viewModel.increaseGlobalTemp()
-                showStatus("Global temp increased to ${viewModel.uiState.value.globalTemperature}°C")
+                showStatus("Global temp increased to -> ${viewModel.uiState.value.globalTemperature}°C")
             }) { Text("+") }
         }
 
