@@ -3,9 +3,9 @@ package com.example.efferest_hmi.data
 import android.car.Car
 import android.car.VehiclePropertyIds
 import android.car.hardware.CarPropertyValue
+import android.car.hardware.CarPropertyConfig
 import android.car.hardware.property.CarPropertyManager
 import android.car.hardware.property.CarPropertyManager.CarPropertyEventCallback
-import android.car.hardware.property.VehiclePropertyType
 import android.content.Context
 import android.util.ArraySet
 import android.util.Log
@@ -16,38 +16,35 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.roundToInt
 
 /**
- * Car-backed HVAC repository.
- *
- * Simplification: All UI "body zones" adjust the same HVAC_TEMPERATURE_SET area (chosen areaId).
- * On many platforms this property is a Float (°C), often in 0.5°C increments. Some use Int.
+ * Car-backed HVAC repository for HVAC_TEMPERATURE_SET.
+ * Simplification: all conceptual body zones write the same seat area temperature (first available areaId).
  */
 class CarHvacRepository(
     private val context: Context
 ) : HvacRepository {
 
-    // Exposed bounds (will be updated from CarPropertyConfig if available)
     override var minTemp: Int = 16
         private set
     override var maxTemp: Int = 28
         private set
 
-    // If property is FLOAT we’ll round to this step when writing. Default to 0.5°C.
-    private var tempStepC: Float = 0.5f
-
-    // Internal
     private val connected = AtomicBoolean(false)
     private var car: Car? = null
-    private var carPropertyManager: CarPropertyManager? = null
+    private var mgr: CarPropertyManager? = null
 
-    // The areaId we will target (picked from property config areaIds)
-    private var areaId: Int = 0
-
-    // Whether HVAC_TEMPERATURE_SET is Float or Int on this platform
+    // Property is commonly FLOAT; handle both FLOAT and INT builds
     private var isFloatTemp: Boolean = true
 
-    // Keep a simple internal model (UI concept zones all map to the same value for now)
+    // Area we control (first available)
+    private var areaId: Int = 0
+
+    // Discrete increment (Celsius). From configArray when available; fallback to 0.5f for float, 1.0f for int.
+    private var incrementC: Float = 0.5f
+
+    // Keep UI model in sync
     private val zoneTemps = mutableMapOf(
         BodyZone.UPPER to 22,
         BodyZone.MIDDLE to 22,
@@ -63,84 +60,73 @@ class CarHvacRepository(
         try {
             val carInst = Car.createCar(context)
             car = carInst
-            val mgr = carInst.getCarManager(Car.PROPERTY_SERVICE) as CarPropertyManager
-            carPropertyManager = mgr
+            mgr = carInst.getCarManager(Car.PROPERTY_SERVICE) as CarPropertyManager
 
-            // Discover config (type, areas, bounds)
-            queryConfig(mgr)
-
-            // Subscribe for changes from vehicle
-            subscribeTemperature(mgr)
-
-            // Read initial temperature
-            queryInitialTemperature(mgr)
+            queryConfig()
+            registerTemperatureCallback()
+            readInitialTemperature()
 
             connected.set(true)
             _ready.value = true
-            Log.d(HVAC_TAG, "CarHvacRepository connected (areaId=$areaId, isFloat=$isFloatTemp, bounds=$minTemp..$maxTemp step=$tempStepC)")
+            Log.d(HVAC_TAG, "HVAC connected: areaId=$areaId, type=${if (isFloatTemp) "FLOAT" else "INT"}, bounds=$minTemp..$maxTemp, inc=$incrementC")
         } catch (e: Exception) {
-            Log.e(HVAC_TAG, "Failed to connect CarHvacRepository", e)
+            Log.e(HVAC_TAG, "Failed to connect HVAC", e)
         }
     }
 
-    private fun queryConfig(mgr: CarPropertyManager) {
+    private fun queryConfig() {
         try {
-            // getPropertyList expects an ArraySet<Integer>, NOT a Kotlin List
             val ids = ArraySet<Int>().apply { add(VehiclePropertyIds.HVAC_TEMPERATURE_SET) }
-            val list = mgr.getPropertyList(ids)
-            val cfg = list.firstOrNull()
-            if (cfg == null) {
-                Log.w(HVAC_TAG, "No CarPropertyConfig for HVAC_TEMPERATURE_SET; using defaults")
+            val configs = mgr?.getPropertyList(ids).orEmpty()
+            val cfg = configs.firstOrNull() as? CarPropertyConfig<*> ?: run {
+                Log.w(HVAC_TAG, "No config for HVAC_TEMPERATURE_SET; using defaults")
                 return
             }
 
-            // Choose an areaId (pick the first available)
+            // Area
             val areas = cfg.areaIds
-            if (areas.isNotEmpty()) {
-                areaId = areas[0]
-            } else {
-                areaId = 0
-            }
+            areaId = if (areas.isNotEmpty()) areas[0] else 0
 
-            // Determine property type
+            // Type
             isFloatTemp = when (cfg.propertyType) {
-                VehiclePropertyType.FLOAT -> true
-                VehiclePropertyType.INT32 -> false
+                CarPropertyConfig.VEHICLE_PROPERTY_TYPE_FLOAT -> true
+                CarPropertyConfig.VEHICLE_PROPERTY_TYPE_INT32 -> false
                 else -> {
-                    Log.w(HVAC_TAG, "Unexpected HVAC_TEMPERATURE_SET type=${cfg.propertyType}, defaulting to FLOAT")
+                    Log.w(HVAC_TAG, "Unexpected property type ${cfg.propertyType}; default FLOAT")
                     true
                 }
             }
 
-            // Read min/max bounds from config when available
-            // CarPropertyConfig<T>.minValue / maxValue return boxed values for the type (Float or Int).
-            val minAny = cfg.minValue
-            val maxAny = cfg.maxValue
-            val (minC, maxC) = if (isFloatTemp) {
-                ((minAny as? Float) ?: minTemp.toFloat()) to ((maxAny as? Float) ?: maxTemp.toFloat())
+            // Prefer configArray (discrete values per docs)
+            val ca = cfg.configArray
+            if (ca != null && ca.size >= 6) {
+                val minC = ca[0] / 10f
+                val maxC = ca[1] / 10f
+                val incC = ca[2] / 10f
+                incrementC = if (incC > 0f) incC else if (isFloatTemp) 0.5f else 1.0f
+                minTemp = minC.toInt()
+                maxTemp = maxC.toInt()
+                Log.d(HVAC_TAG, "ConfigArray found: minC=$minC, maxC=$maxC, incC=$incrementC")
             } else {
-                ((minAny as? Int)?.toFloat() ?: minTemp.toFloat()) to ((maxAny as? Int)?.toFloat() ?: maxTemp.toFloat())
+                // Fallback to min/max
+                val minAny = cfg.getMinValue(areaId)
+                val maxAny = cfg.getMaxValue(areaId)
+                val minC = if (isFloatTemp) (minAny as? Float ?: 16f) else (minAny as? Int)?.toFloat() ?: 16f
+                val maxC = if (isFloatTemp) (maxAny as? Float ?: 28f) else (maxAny as? Int)?.toFloat() ?: 28f
+                minTemp = minC.toInt()
+                maxTemp = maxC.toInt()
+                incrementC = if (isFloatTemp) 0.5f else 1.0f
+                Log.d(HVAC_TAG, "Bounds from min/max: minC=$minC, maxC=$maxC, incC=$incrementC")
             }
-
-            // Set integer bounds for our UI model (we use whole °C in the current UI)
-            minTemp = minC.toInt()
-            maxTemp = maxC.toInt()
-
-            // Step/increment isn’t consistently exposed across builds.
-            // If your platform provides a specific increment, set tempStepC to that.
-            // Otherwise keep default 0.5°C when using float; for int we assume 1°C.
-            tempStepC = if (isFloatTemp) 0.5f else 1.0f
-
-            Log.d(HVAC_TAG, "Config: areaId=$areaId, type=${if (isFloatTemp) "FLOAT" else "INT"}, min=$minC, max=$maxC, step=$tempStepC")
         } catch (e: Exception) {
             Log.w(HVAC_TAG, "queryConfig failed; using defaults", e)
         }
     }
 
-    private fun subscribeTemperature(mgr: CarPropertyManager) {
-        mgr.subscribePropertyEvents(
-            VehiclePropertyIds.HVAC_TEMPERATURE_SET,
-            object : CarPropertyEventCallback {
+    private fun registerTemperatureCallback() {
+        try {
+            // Use registerCallback with ONCHANGE rate; handles events per docs
+            mgr?.registerCallback(object : CarPropertyEventCallback {
                 override fun onChangeEvent(value: CarPropertyValue<*>?) {
                     val raw = value?.value ?: return
                     val tempC = when (raw) {
@@ -151,22 +137,23 @@ class CarHvacRepository(
                     val tInt = tempC.toInt()
                     globalTemp = tInt
                     zoneTemps.keys.forEach { zoneTemps[it] = tInt }
-                    Log.d(HVAC_TAG, "Temperature change event -> ${formatTemp(tempC)}")
+                    Log.d(HVAC_TAG, "HVAC event -> ${formatTemp(tempC)}")
                 }
-
                 override fun onErrorEvent(propertyId: Int, areaId: Int) {
-                    Log.w(HVAC_TAG, "HVAC_TEMPERATURE_SET error event (property=$propertyId area=$areaId)")
+                    Log.w(HVAC_TAG, "HVAC error property=$propertyId area=$areaId")
                 }
-            }
-        )
+            }, VehiclePropertyIds.HVAC_TEMPERATURE_SET, CarPropertyManager.SENSOR_RATE_ONCHANGE)
+        } catch (e: Exception) {
+            Log.w(HVAC_TAG, "registerCallback failed", e)
+        }
     }
 
-    private fun queryInitialTemperature(mgr: CarPropertyManager) {
+    private fun readInitialTemperature() {
         try {
             val v = if (isFloatTemp) {
-                mgr.getProperty(Float::class.java, VehiclePropertyIds.HVAC_TEMPERATURE_SET, areaId)?.value
+                mgr?.getProperty(Float::class.java, VehiclePropertyIds.HVAC_TEMPERATURE_SET, areaId)?.value
             } else {
-                mgr.getProperty(Int::class.java, VehiclePropertyIds.HVAC_TEMPERATURE_SET, areaId)?.value
+                mgr?.getProperty(Int::class.java, VehiclePropertyIds.HVAC_TEMPERATURE_SET, areaId)?.value
             }
             val tempC = when (v) {
                 is Float -> v
@@ -176,84 +163,79 @@ class CarHvacRepository(
             val tInt = tempC.toInt()
             globalTemp = tInt
             zoneTemps.keys.forEach { zoneTemps[it] = tInt }
-            Log.d(HVAC_TAG, "Initial HVAC_TEMPERATURE_SET = ${formatTemp(tempC)}")
+            Log.d(HVAC_TAG, "Initial temp -> ${formatTemp(tempC)}")
         } catch (e: SecurityException) {
             Log.e(HVAC_TAG, "Permission denied reading HVAC_TEMPERATURE_SET", e)
         } catch (e: Exception) {
-            Log.w(HVAC_TAG, "Unable to read initial HVAC_TEMPERATURE_SET; using defaults", e)
+            Log.w(HVAC_TAG, "Unable to read initial temp; using defaults", e)
         }
     }
 
     override fun getZoneTemperature(zone: BodyZone): Int = zoneTemps[zone] ?: globalTemp
 
     override fun setZoneTemperature(zone: BodyZone, temp: Int) {
-        val clamped = temp.coerceIn(minTemp, maxTemp)
-        zoneTemps[zone] = clamped
-        globalTemp = clamped
-        writeTemperature(clamped)
+        val snappedC = snapToSupported(temp.toFloat())
+        val snappedInt = snappedC.toInt()
+        zoneTemps[zone] = snappedInt
+        globalTemp = snappedInt
+        writeTemperature(snappedC)
     }
 
     override fun adjustZoneTemperature(zone: BodyZone, delta: Int) {
-        val newTemp = (zoneTemps[zone] ?: globalTemp) + delta
-        setZoneTemperature(zone, newTemp)
+        val current = (zoneTemps[zone] ?: globalTemp).toFloat()
+        val snappedC = snapToSupported(current + delta)
+        val snappedInt = snappedC.toInt()
+        zoneTemps[zone] = snappedInt
+        globalTemp = snappedInt
+        writeTemperature(snappedC)
     }
 
     override fun getGlobalTemperature(): Int = globalTemp
 
     override fun setGlobalTemperature(temp: Int) {
-        val clamped = temp.coerceIn(minTemp, maxTemp)
-        globalTemp = clamped
-        zoneTemps.keys.forEach { zoneTemps[it] = clamped }
-        writeTemperature(clamped)
+        val snappedC = snapToSupported(temp.toFloat())
+        val snappedInt = snappedC.toInt()
+        globalTemp = snappedInt
+        zoneTemps.keys.forEach { zoneTemps[it] = snappedInt }
+        writeTemperature(snappedC)
     }
 
-    private fun writeTemperature(tempInt: Int) {
+    private fun writeTemperature(tempC: Float) {
         try {
             if (isFloatTemp) {
-                // Round to step for float properties
-                val current = tempInt.toFloat()
-                val rounded = roundToStep(current, tempStepC)
-                carPropertyManager?.setProperty(
-                    Float::class.java,
-                    VehiclePropertyIds.HVAC_TEMPERATURE_SET,
-                    areaId,
-                    rounded
-                )
-                Log.d(HVAC_TAG, "Set HVAC_TEMPERATURE_SET to ${formatTemp(rounded)} (area=$areaId)")
+                mgr?.setProperty(Float::class.java, VehiclePropertyIds.HVAC_TEMPERATURE_SET, areaId, tempC)
+                Log.d(HVAC_TAG, "Set HVAC temp -> ${formatTemp(tempC)} (area=$areaId)")
             } else {
-                carPropertyManager?.setProperty(
-                    Int::class.java,
-                    VehiclePropertyIds.HVAC_TEMPERATURE_SET,
-                    areaId,
-                    tempInt
-                )
-                Log.d(HVAC_TAG, "Set HVAC_TEMPERATURE_SET to ${tempInt}°C (area=$areaId)")
+                mgr?.setProperty(Int::class.java, VehiclePropertyIds.HVAC_TEMPERATURE_SET, areaId, tempC.toInt())
+                Log.d(HVAC_TAG, "Set HVAC temp -> ${tempC.toInt()}°C (area=$areaId)")
             }
         } catch (e: SecurityException) {
-            Log.e(HVAC_TAG, "No permission to set HVAC temperature", e)
+            Log.e(HVAC_TAG, "No permission to set HVAC temp", e)
         } catch (e: Exception) {
-            Log.e(HVAC_TAG, "Failed to set HVAC temperature", e)
+            Log.e(HVAC_TAG, "Failed to set HVAC temp", e)
         }
     }
 
+    private fun snapToSupported(requestedC: Float): Float {
+        // Clamp
+        val clamped = requestedC.coerceIn(minTemp.toFloat(), maxTemp.toFloat())
+        // Snap to increment
+        val steps = ((clamped - minTemp) / incrementC).roundToInt()
+        val snapped = minTemp + steps * incrementC
+        return snapped.coerceIn(minTemp.toFloat(), maxTemp.toFloat())
+    }
+
+    private fun formatTemp(c: Float): String =
+        if (isFloatTemp) String.format("%.1f°C", c) else "${c.toInt()}°C"
+
     fun disconnect() {
         try {
-            carPropertyManager?.unsubscribePropertyEvents(VehiclePropertyIds.HVAC_TEMPERATURE_SET)
+            mgr?.unregisterCallback(null) // Unregister all callbacks for this client
             car?.disconnect()
             connected.set(false)
-            Log.d(HVAC_TAG, "CarHvacRepository disconnected")
+            Log.d(HVAC_TAG, "HVAC disconnected")
         } catch (e: Exception) {
             Log.w(HVAC_TAG, "Disconnect issues", e)
         }
     }
-
-    private fun roundToStep(value: Float, step: Float): Float {
-        if (step <= 0f) return value
-        val steps = (value / step).toInt()
-        val lower = steps * step
-        val upper = (steps + 1) * step
-        return if (value - lower < upper - value) lower else upper
-    }
-
-    private fun formatTemp(c: Float): String = if (isFloatTemp) String.format("%.1f°C", c) else "${c.toInt()}°C"
 }

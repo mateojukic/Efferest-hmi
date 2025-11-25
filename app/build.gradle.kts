@@ -10,15 +10,15 @@ android {
     // Keep your compileSdk config. If this "release(36)" is from the catalog, leave it.
     // If syncing fails, change to: compileSdk = 34
     compileSdk {
-        version = release(36)
+        version = release(34)
     }
 
     defaultConfig {
         applicationId = "com.example.efferest_hmi"
 
         // Automotive apps typically require minSdk 29+. Update now to avoid issues on AAOS.
-        minSdk = 29
-        targetSdk = 36
+        minSdk = 30
+        targetSdk = 34
 
         versionCode = 1
         versionName = "1.0"
@@ -54,6 +54,7 @@ android {
     }
 
     useLibrary("android.car")
+    useLibrary("android.car.cluster")
 }
 
 dependencies {
