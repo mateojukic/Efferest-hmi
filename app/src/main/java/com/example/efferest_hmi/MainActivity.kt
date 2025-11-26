@@ -21,7 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.efferest_hmi.data.InMemoryHvacRepository
+import com.example.efferest_hmi.data.CarHvacRepository
 import com.example.efferest_hmi.model.UIVersion
 import com.example.efferest_hmi.ui.HvacViewModel
 import com.example.efferest_hmi.ui.components.VersionAView
@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: HvacViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return HvacViewModel(InMemoryHvacRepository()) as T
+                return HvacViewModel(CarHvacRepository(applicationContext)) as T
             }
         }
     }

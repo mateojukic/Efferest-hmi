@@ -38,6 +38,23 @@ class HvacViewModel(
     )
     val uiState: StateFlow<HvacUiState> = _uiState
 
+    init {
+        (repo as? com.example.efferest_hmi.data.CarHvacRepository)?.let { carRepo ->
+            viewModelScope.launch {
+                carRepo.connect()
+                // Refresh UI state after connecting/initial read
+                _uiState.update { s ->
+                    s.copy(
+                        globalTemperature = repo.getGlobalTemperature(),
+                        zoneTemperatures = BodyZone.values().associateWith { repo.getZoneTemperature(it) },
+                        minTemp = repo.minTemp,
+                        maxTemp = repo.maxTemp
+                    )
+                }
+            }
+        }
+    }
+
     // Track per-zone timer jobs for active feedback
     private val zoneTimers: MutableMap<BodyZone, Job?> = mutableMapOf(
         BodyZone.UPPER to null,
