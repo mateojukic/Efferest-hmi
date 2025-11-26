@@ -131,7 +131,7 @@ private fun ColdButton(
 }
 
 private fun zoneLabel(zone: BodyZone): String = when (zone) {
-    BodyZone.UPPER -> "Windshield"
-    BodyZone.MIDDLE -> "Front"
+    BodyZone.UPPER -> "Head"
+    BodyZone.MIDDLE -> "Body"
     BodyZone.LOWER -> "Feet"
 }
