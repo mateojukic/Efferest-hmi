@@ -50,28 +50,13 @@ class HvacViewModel(
     }
 
     fun toggleWarm(zone: BodyZone) {
-        val current = _uiState.value.zoneActions[zone] ?: ZoneAction.NONE
-        when (current) {
-            ZoneAction.WARM_ACTIVE -> setZoneAction(zone, ZoneAction.NONE) // cancel
-            ZoneAction.COLD_ACTIVE, ZoneAction.NONE -> {
-                // Start warm action
-                repo.adjustZoneTemperature(zone, -2) // warm feeling => decrease temp
-                pushZoneTemps()
-                startTimedAction(zone, ZoneAction.WARM_ACTIVE)
-            }
-        }
+        repo.warm()
+        pushGlobalTemp()
     }
 
     fun toggleCold(zone: BodyZone) {
-        val current = _uiState.value.zoneActions[zone] ?: ZoneAction.NONE
-        when (current) {
-            ZoneAction.COLD_ACTIVE -> setZoneAction(zone, ZoneAction.NONE)
-            ZoneAction.WARM_ACTIVE, ZoneAction.NONE -> {
-                repo.adjustZoneTemperature(zone, +2) // cold feeling => increase temp
-                pushZoneTemps()
-                startTimedAction(zone, ZoneAction.COLD_ACTIVE)
-            }
-        }
+        repo.cool()
+        pushGlobalTemp()
     }
 
     private fun startTimedAction(zone: BodyZone, action: ZoneAction) {
@@ -106,12 +91,12 @@ class HvacViewModel(
     }
 
     fun increaseGlobalTemp() {
-        repo.setGlobalTemperature(repo.getGlobalTemperature() + 1)
+        repo.warm()
         pushGlobalTemp()
     }
 
     fun decreaseGlobalTemp() {
-        repo.setGlobalTemperature(repo.getGlobalTemperature() - 1)
+        repo.cool()
         pushGlobalTemp()
     }
 

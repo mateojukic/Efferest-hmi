@@ -10,6 +10,9 @@ interface HvacRepository {
     fun adjustZoneTemperature(zone: BodyZone, delta: Int)
     fun getGlobalTemperature(): Int
     fun setGlobalTemperature(temp: Int)
+    // New convenience methods for one increment up/down
+    fun warm()
+    fun cool()
 }
 
 class InMemoryHvacRepository(
@@ -38,5 +41,15 @@ class InMemoryHvacRepository(
     override fun getGlobalTemperature(): Int = globalTemp
     override fun setGlobalTemperature(temp: Int) {
         globalTemp = temp.coerceIn(minTemp, maxTemp)
+        // Keep zone temps consistent with global for simplification
+        BodyZone.values().forEach { zoneTemps[it] = globalTemp }
+    }
+
+    override fun warm() {
+        setGlobalTemperature(globalTemp + 1)
+    }
+
+    override fun cool() {
+        setGlobalTemperature(globalTemp - 1)
     }
 }

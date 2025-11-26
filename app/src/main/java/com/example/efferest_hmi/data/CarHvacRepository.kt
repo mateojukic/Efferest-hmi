@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToInt
+import kotlin.text.toFloat
+import kotlin.text.toInt
 
 /**
  * Car-backed HVAC repository focused on HVAC_TEMPERATURE_SET (target temperature in Celsius).
@@ -342,5 +344,16 @@ class CarHvacRepository(
         } catch (e: Exception) {
             Log.w(HVAC_TAG, "Disconnect encountered issues", e)
         }
+    }
+    override fun warm() {
+        val step = if (isFloatTemp) incrementC else 1.0f
+        val next = snapToSupported(getGlobalTemperature().toFloat() + step).toInt()
+        setGlobalTemperature(next)
+    }
+
+    override fun cool() {
+        val step = if (isFloatTemp) incrementC else 1.0f
+        val next = snapToSupported(getGlobalTemperature().toFloat() - step).toInt()
+        setGlobalTemperature(next)
     }
 }
