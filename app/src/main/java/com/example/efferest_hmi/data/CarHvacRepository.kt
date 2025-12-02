@@ -346,13 +346,13 @@ class CarHvacRepository(
         }
     }
     override fun warm() {
-        val step = if (isFloatTemp) incrementC else 1.0f
+        val step = 1.0f
         val next = snapToSupported(getGlobalTemperature().toFloat() + step).toInt()
         setGlobalTemperature(next)
     }
 
     override fun cool() {
-        val step = if (isFloatTemp) incrementC else 1.0f
+        val step = 1.0f
         val next = snapToSupported(getGlobalTemperature().toFloat() - step).toInt()
         setGlobalTemperature(next)
     }
