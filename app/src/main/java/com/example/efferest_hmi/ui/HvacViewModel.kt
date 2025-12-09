@@ -6,12 +6,17 @@ import com.example.efferest_hmi.data.HvacRepository
 import com.example.efferest_hmi.model.BodyZone
 import com.example.efferest_hmi.model.UIVersion
 import com.example.efferest_hmi.model.ZoneAction
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+enum class FanDirection {
+    FRONTAL,
+    FRONTAL_FEET,
+    FEET,
+    FEET_WINDSHIELD
+}
 
 data class HvacUiState(
     val version: UIVersion = UIVersion.VERSION_A,
@@ -19,7 +24,9 @@ data class HvacUiState(
     val globalTemperature: Int = 22,
     val minTemp: Int = 16,
     val maxTemp: Int = 28,
-    val zoneActions: Map<BodyZone, ZoneAction> = BodyZone.values().associateWith { ZoneAction.NONE }
+    val zoneActions: Map<BodyZone, ZoneAction> = BodyZone.values().associateWith { ZoneAction.NONE },
+    val fanSpeed: Int = 0, // 0 = Off, 1-5 = Levels
+    val fanDirection: FanDirection = FanDirection.FRONTAL
 )
 
 class HvacViewModel(
@@ -42,7 +49,6 @@ class HvacViewModel(
         (repo as? com.example.efferest_hmi.data.CarHvacRepository)?.let { carRepo ->
             viewModelScope.launch {
                 carRepo.connect()
-                // Refresh UI state after connecting/initial read
                 _uiState.update { s ->
                     s.copy(
                         globalTemperature = repo.getGlobalTemperature(),
@@ -54,13 +60,6 @@ class HvacViewModel(
             }
         }
     }
-
-    // Track per-zone timer jobs for active feedback
-    private val zoneTimers: MutableMap<BodyZone, Job?> = mutableMapOf(
-        BodyZone.UPPER to null,
-        BodyZone.MIDDLE to null,
-        BodyZone.LOWER to null
-    )
 
     fun cycleVersion() {
         _uiState.update { s -> s.copy(version = s.version.next()) }
@@ -76,37 +75,6 @@ class HvacViewModel(
         pushGlobalTemp()
     }
 
-    private fun startTimedAction(zone: BodyZone, action: ZoneAction) {
-        // Cancel any existing job
-        zoneTimers[zone]?.cancel()
-        setZoneAction(zone, action)
-
-        val job = viewModelScope.launch {
-            val activeAction = action
-            delay(5000L) // 5 seconds
-            // If still the same action, reset
-            val now = _uiState.value.zoneActions[zone]
-            if (now == activeAction) {
-                setZoneAction(zone, ZoneAction.NONE)
-            }
-        }
-        zoneTimers[zone] = job
-    }
-
-    private fun setZoneAction(zone: BodyZone, action: ZoneAction) {
-        _uiState.update { state ->
-            state.copy(
-                zoneActions = state.zoneActions.toMutableMap().also { it[zone] = action }
-            )
-        }
-    }
-
-    private fun pushZoneTemps() {
-        _uiState.update { state ->
-            state.copy(zoneTemperatures = BodyZone.values().associateWith { repo.getZoneTemperature(it) })
-        }
-    }
-
     fun increaseGlobalTemp() {
         repo.warm()
         pushGlobalTemp()
@@ -115,6 +83,20 @@ class HvacViewModel(
     fun decreaseGlobalTemp() {
         repo.cool()
         pushGlobalTemp()
+    }
+
+    // --- Fan Controls ---
+
+    fun setFanSpeed(level: Int) {
+        _uiState.update { it.copy(fanSpeed = level.coerceIn(0, 5)) }
+    }
+
+    fun setFanDirection(direction: FanDirection) {
+        _uiState.update { state ->
+            // Logic: If fan was OFF (0), jump to Level 1 when direction is pressed.
+            val newSpeed = if (state.fanSpeed == 0) 1 else state.fanSpeed
+            state.copy(fanDirection = direction, fanSpeed = newSpeed)
+        }
     }
 
     private fun pushGlobalTemp() {
