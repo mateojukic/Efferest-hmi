@@ -6,6 +6,8 @@ import com.example.efferest_hmi.data.HvacRepository
 import com.example.efferest_hmi.model.BodyZone
 import com.example.efferest_hmi.model.UIVersion
 import com.example.efferest_hmi.model.ZoneAction
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -46,6 +48,9 @@ class HvacViewModel(
     )
     val uiState: StateFlow<HvacUiState> = _uiState
 
+    // Job to handle the temporary fan boost so we can cancel it if needed
+    private var fanBoostJob: Job? = null
+
     init {
         (repo as? com.example.efferest_hmi.data.CarHvacRepository)?.let { carRepo ->
             viewModelScope.launch {
@@ -73,19 +78,18 @@ class HvacViewModel(
 
     // --- Temperature Controls ---
     fun toggleWarm(zone: BodyZone) {
-        // Modified: In Version A, this now implies setting specific target 24°C
-        setTargetTemperature(24)
+        repo.warm()
+        pushGlobalTemp()
     }
 
     fun toggleCold(zone: BodyZone) {
-        // Modified: In Version A, this now implies setting specific target 18°C
-        setTargetTemperature(18)
+        repo.cool()
+        pushGlobalTemp()
     }
 
     fun increaseGlobalTemp() { repo.warm(); pushGlobalTemp() }
     fun decreaseGlobalTemp() { repo.cool(); pushGlobalTemp() }
 
-    // New helper for direct setting (used by Version A logic)
     fun setTargetTemperature(temp: Int) {
         repo.setGlobalTemperature(temp)
         pushGlobalTemp()
@@ -100,6 +104,9 @@ class HvacViewModel(
         val safeLevel = level.coerceIn(0, 5)
         repo.setFanSpeed(safeLevel)
         _uiState.update { it.copy(fanSpeed = repo.getFanSpeed()) }
+
+        // If the user manually changes fan speed, we should probably cancel any auto-boost
+        fanBoostJob?.cancel()
     }
 
     fun setFanDirection(direction: FanDirection) {
@@ -112,10 +119,30 @@ class HvacViewModel(
         }
     }
 
+    // --- Temporary Fan Boost Logic ---
+    fun triggerFanBoost() {
+        // Cancel any existing boost job to restart the timer
+        fanBoostJob?.cancel()
+
+        fanBoostJob = viewModelScope.launch {
+            // 1. Boost to Level 5
+            setFanSpeed(5)
+
+            // 2. Wait for 5 seconds
+            delay(5000L)
+
+            // 3. Revert to Default Level 2
+            setFanSpeed(2)
+        }
+    }
+
     // --- Reset Logic ---
     fun resetToDefaults() {
+        // Cancel boost if running so it doesn't override the reset later
+        fanBoostJob?.cancel()
+
         repo.setGlobalTemperature(21)
-        repo.setFanSpeed(2)
+        repo.setFanSpeed(1)
         refreshState()
     }
 }
