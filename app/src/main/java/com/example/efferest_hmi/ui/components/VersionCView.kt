@@ -48,7 +48,7 @@ fun VersionCView(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
-                modifier = Modifier.widthIn(max = 550.dp)
+                modifier = Modifier.widthIn(max = 600.dp) // Slightly wider for 150dp buttons
             ) {
 
                 // 1. TEMPERATURE CONTAINER
@@ -72,16 +72,16 @@ fun VersionCView(
                                 SoundEffects.playBeep()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = coldColor),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.size(width = 70.dp, height = 55.dp)
+                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier.size(width = 120.dp, height = 120.dp)
                         ) {
-                            Text("-", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                            Text("-", fontSize = 56.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Text(
                             text = "${uiState.globalTemperature}°C",
                             color = Color.White,
-                            fontSize = 42.sp,
+                            fontSize = 48.sp,
                             fontWeight = FontWeight.Bold
                         )
 
@@ -91,10 +91,10 @@ fun VersionCView(
                                 SoundEffects.playBeep()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = warmColor),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.size(width = 70.dp, height = 55.dp)
+                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier.size(width = 120.dp, height = 120.dp)
                         ) {
-                            Text("+", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                            Text("+", fontSize = 56.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -110,78 +110,74 @@ fun VersionCView(
                         .background(panelBackground)
                         .padding(24.dp)
                 ) {
-                    Text("Fan Direction", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.padding(bottom = 12.dp))
+                    // --- Fan Direction Header ---
+                    Text("Fan Direction", color = Color.Gray, fontSize = 16.sp, modifier = Modifier.padding(bottom = 12.dp))
 
-                    // --- Fan Direction Buttons ---
+                    // --- Fan Direction Buttons (Row of 3 - Removed Defrost) ---
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Logic Update: Directions are ONLY active if selected AND Fan Speed > 0
-                        val isFanOn = uiState.fanSpeed > 0
-
                         FanDirectionButton(
                             iconRes = R.drawable.ic_fan_front,
-                            isActive = isFanOn && uiState.fanDirection == FanDirection.FRONTAL,
+                            isActive = uiState.fanDirection == FanDirection.FRONTAL,
                             activeColor = activeHighlight,
                             inactiveColor = inactiveGrey,
                             onClick = { viewModel.setFanDirection(FanDirection.FRONTAL); SoundEffects.playBeep() }
                         )
                         FanDirectionButton(
                             iconRes = R.drawable.ic_fan_mix,
-                            isActive = isFanOn && uiState.fanDirection == FanDirection.FRONTAL_FEET,
+                            isActive = uiState.fanDirection == FanDirection.FRONTAL_FEET,
                             activeColor = activeHighlight,
                             inactiveColor = inactiveGrey,
                             onClick = { viewModel.setFanDirection(FanDirection.FRONTAL_FEET); SoundEffects.playBeep() }
                         )
                         FanDirectionButton(
                             iconRes = R.drawable.ic_fan_feet,
-                            isActive = isFanOn && uiState.fanDirection == FanDirection.FEET,
+                            isActive = uiState.fanDirection == FanDirection.FEET,
                             activeColor = activeHighlight,
                             inactiveColor = inactiveGrey,
                             onClick = { viewModel.setFanDirection(FanDirection.FEET); SoundEffects.playBeep() }
-                        )
-                        FanDirectionButton(
-                            iconRes = R.drawable.ic_fan_defrost,
-                            isActive = isFanOn && uiState.fanDirection == FanDirection.FEET_WINDSHIELD,
-                            activeColor = activeHighlight,
-                            inactiveColor = inactiveGrey,
-                            onClick = { viewModel.setFanDirection(FanDirection.FEET_WINDSHIELD); SoundEffects.playBeep() }
                         )
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    Text("Fan Speed", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.padding(bottom = 12.dp))
+                    // --- Fan Speed Header ---
+                    Text("Fan Speed", color = Color.Gray, fontSize = 16.sp, modifier = Modifier.padding(bottom = 12.dp))
 
-                    // --- Fan Speed Bar ---
+                    // --- Fan Speed Buttons (Low, Mid, High) ---
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.Black),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        FanSpeedSegment(
-                            label = "OFF",
-                            isActive = uiState.fanSpeed == 0,
-                            activeColor = Color(0xFFD32F2F),
+                        // LOW = Level 2
+                        FanSpeedButton(
+                            label = "LOW",
+                            isActive = uiState.fanSpeed == 2,
+                            activeColor = activeHighlight,
                             inactiveColor = inactiveGrey,
-                            onClick = { viewModel.setFanSpeed(0); SoundEffects.playBeep() },
-                            modifier = Modifier.weight(1f)
+                            onClick = { viewModel.setFanSpeed(2); SoundEffects.playBeep() }
                         )
 
-                        for (i in 1..5) {
-                            FanSpeedSegment(
-                                label = if (i == 5) "MAX" else "$i",
-                                isActive = uiState.fanSpeed >= i,
-                                activeColor = activeHighlight,
-                                inactiveColor = inactiveGrey,
-                                onClick = { viewModel.setFanSpeed(i); SoundEffects.playBeep() },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        // MID = Level 4
+                        FanSpeedButton(
+                            label = "MID",
+                            isActive = uiState.fanSpeed == 4,
+                            activeColor = activeHighlight,
+                            inactiveColor = inactiveGrey,
+                            onClick = { viewModel.setFanSpeed(4); SoundEffects.playBeep() }
+                        )
+
+                        // HIGH = Level 6 (or Max)
+                        // Note: If car only supports up to 5, this might clamp to 5 in ViewModel
+                        FanSpeedButton(
+                            label = "HIGH",
+                            isActive = uiState.fanSpeed >= 5,
+                            activeColor = activeHighlight,
+                            inactiveColor = inactiveGrey,
+                            onClick = { viewModel.setFanSpeed(6); SoundEffects.playBeep() }
+                        )
                     }
                 }
             }
@@ -200,12 +196,13 @@ fun FanDirectionButton(
     inactiveColor: Color,
     onClick: () -> Unit
 ) {
+    // Large Square Button: 150dp
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = Modifier
-            .size(80.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .size(120.dp) // SIZE CHANGE
+            .clip(RoundedCornerShape(24.dp))
             .background(if (isActive) activeColor else inactiveColor)
             .clickable { onClick() }
     ) {
@@ -213,32 +210,33 @@ fun FanDirectionButton(
             painter = painterResource(id = iconRes),
             contentDescription = null,
             colorFilter = ColorFilter.tint(if (isActive) Color.Black else Color.LightGray),
-            modifier = Modifier.size(42.dp)
+            modifier = Modifier.size(80.dp) // Scaled up icon
         )
     }
 }
 
 @Composable
-fun FanSpeedSegment(
+fun FanSpeedButton(
     label: String,
     isActive: Boolean,
     activeColor: Color,
     inactiveColor: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
+    // Large Square Button: 150dp
     Box(
-        modifier = modifier
-            .fillMaxHeight()
+        modifier = Modifier
+            .size(120.dp) // SIZE CHANGE
+            .clip(RoundedCornerShape(24.dp))
             .background(if (isActive) activeColor else inactiveColor)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            fontSize = 12.sp,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            color = if (isActive) Color.Black else Color.Gray
+            color = if (isActive) Color.Black else Color.LightGray
         )
     }
 }

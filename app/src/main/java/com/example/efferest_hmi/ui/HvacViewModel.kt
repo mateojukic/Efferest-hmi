@@ -142,7 +142,7 @@ class HvacViewModel(
         fanBoostJob?.cancel()
 
         repo.setGlobalTemperature(21)
-        repo.setFanSpeed(1)
+        repo.setFanSpeed(2)
         refreshState()
     }
 }
