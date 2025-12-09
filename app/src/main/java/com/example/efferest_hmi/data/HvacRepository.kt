@@ -1,6 +1,7 @@
 package com.example.efferest_hmi.data
 
 import com.example.efferest_hmi.model.BodyZone
+import com.example.efferest_hmi.ui.FanDirection // Make sure this is imported or shared
 
 interface HvacRepository {
     val minTemp: Int
@@ -15,9 +16,12 @@ interface HvacRepository {
     fun warm()
     fun cool()
 
-    // Fan
+    // Fan Speed
     fun getFanSpeed(): Int
     fun setFanSpeed(speed: Int)
+
+    // Fan Direction (VHAL Logic)
+    fun setFanDirection(direction: FanDirection)
 }
 
 class InMemoryHvacRepository(
@@ -32,6 +36,7 @@ class InMemoryHvacRepository(
     )
     private var globalTemp: Int = 22
     private var fanSpeed: Int = 0
+    private var currentDirection: FanDirection = FanDirection.FRONTAL
 
     override fun getZoneTemperature(zone: BodyZone): Int = zoneTemps[zone] ?: globalTemp
 
@@ -61,6 +66,11 @@ class InMemoryHvacRepository(
     override fun getFanSpeed(): Int = fanSpeed
 
     override fun setFanSpeed(speed: Int) {
-        fanSpeed = speed.coerceIn(0, 5) // Mock max level 5
+        fanSpeed = speed.coerceIn(0, 5)
+    }
+
+    override fun setFanDirection(direction: FanDirection) {
+        currentDirection = direction
+        // Mock implementation just stores state
     }
 }

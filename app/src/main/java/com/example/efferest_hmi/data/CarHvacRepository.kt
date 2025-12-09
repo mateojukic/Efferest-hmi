@@ -10,6 +10,7 @@ import android.content.Context
 import android.util.ArraySet
 import android.util.Log
 import com.example.efferest_hmi.model.BodyZone
+import com.example.efferest_hmi.ui.FanDirection
 import com.example.efferest_hmi.util.HVAC_TAG
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,12 +35,17 @@ class CarHvacRepository(
     private var tempAreaId: Int = 0
     private var fanAreaId: Int = 0
 
+    // Standard Android Automotive Fan Direction Constants
+    // derived from android.car.hardware.hvac.CarHvacFanDirection
+    private val FAN_DIR_FACE = 0x1
+    private val FAN_DIR_FLOOR = 0x2
+    private val FAN_DIR_DEFROST = 0x4
+
     private val connected = AtomicBoolean(false)
     private var car: Car? = null
     private var mgr: CarPropertyManager? = null
     private var hvacCallback: CarPropertyEventCallback? = null
 
-    // Internal State
     private val zoneTemps = mutableMapOf(
         BodyZone.UPPER to 22,
         BodyZone.MIDDLE to 22,
@@ -50,6 +56,9 @@ class CarHvacRepository(
 
     private val _ready = MutableStateFlow(false)
     val ready: StateFlow<Boolean> = _ready
+
+    // Keeping 0 offset based on your last request
+    private val fanSpeedOffset = 0
 
     suspend fun connect() = withContext(Dispatchers.IO) {
         if (connected.get()) return@withContext
@@ -64,7 +73,7 @@ class CarHvacRepository(
 
             connected.set(true)
             _ready.value = true
-            Log.d(HVAC_TAG, "HVAC connected. TempArea=$tempAreaId FanArea=$fanAreaId")
+            Log.d(HVAC_TAG, "HVAC connected")
         } catch (e: Exception) {
             Log.e(HVAC_TAG, "Failed to connect HVAC", e)
         }
@@ -76,10 +85,11 @@ class CarHvacRepository(
             val ids = ArraySet<Int>().apply {
                 add(VehiclePropertyIds.HVAC_TEMPERATURE_SET)
                 add(VehiclePropertyIds.HVAC_FAN_SPEED)
+                add(VehiclePropertyIds.HVAC_FAN_DIRECTION)
             }
             val configs = manager.getPropertyList(ids)
 
-            // 1. Setup Temperature
+            // Setup Temp Config
             val tempCfg = configs.find { it.propertyId == VehiclePropertyIds.HVAC_TEMPERATURE_SET }
             if (tempCfg != null) {
                 tempAreaId = tempCfg.areaIds.firstOrNull() ?: 0
@@ -98,11 +108,10 @@ class CarHvacRepository(
                 applyDefaultBounds()
             }
 
-            // 2. Setup Fan Speed
+            // Setup Fan Config (Speed & Direction usually share the same Area ID)
             val fanCfg = configs.find { it.propertyId == VehiclePropertyIds.HVAC_FAN_SPEED }
             if (fanCfg != null) {
                 fanAreaId = fanCfg.areaIds.firstOrNull() ?: 0
-                // We could read configArray[0] for max fan speed here if we wanted to be dynamic
             }
 
         } catch (e: Exception) {
@@ -114,7 +123,6 @@ class CarHvacRepository(
     private fun deriveBoundsFromMinMax(cfg: CarPropertyConfig<*>, areaId: Int, sampleMin: Any?) {
         val minAny = sampleMin ?: try { cfg.getMinValue(areaId) } catch (e: Exception) { 16f }
         val maxAny = try { cfg.getMaxValue(areaId) } catch (e: Exception) { 28f }
-
         minTemp = if (minAny is Float) minAny.toInt() else (minAny as? Int) ?: 16
         maxTemp = if (maxAny is Float) maxAny.toInt() else (maxAny as? Int) ?: 28
         incrementC = if (isFloatTemp) 0.5f else 1.0f
@@ -139,24 +147,18 @@ class CarHvacRepository(
                         val raw = v.value
                         val tempC = if (raw is Float) raw else (raw as? Int)?.toFloat() ?: return
                         updateAllZones(tempC.toInt())
-                        Log.d(HVAC_TAG, "Temp changed -> ${tempC.toInt()}")
                     }
                     VehiclePropertyIds.HVAC_FAN_SPEED -> {
-                        val speed = v.value as? Int ?: return
-                        currentFanSpeed = speed
-                        Log.d(HVAC_TAG, "Fan speed changed -> $speed")
+                        val rawSpeed = v.value as? Int ?: return
+                        currentFanSpeed = (rawSpeed - fanSpeedOffset).coerceAtLeast(0)
                     }
                 }
             }
-            override fun onErrorEvent(propertyId: Int, areaId: Int) {
-                Log.w(HVAC_TAG, "HVAC Error: prop=$propertyId area=$areaId")
-            }
+            override fun onErrorEvent(propertyId: Int, areaId: Int) { }
         }
 
         try {
-            // Register for Temp
             manager.registerCallback(callback, VehiclePropertyIds.HVAC_TEMPERATURE_SET, CarPropertyManager.SENSOR_RATE_ONCHANGE)
-            // Register for Fan
             manager.registerCallback(callback, VehiclePropertyIds.HVAC_FAN_SPEED, CarPropertyManager.SENSOR_RATE_ONCHANGE)
             hvacCallback = callback
         } catch (e: Exception) {
@@ -167,7 +169,6 @@ class CarHvacRepository(
     private fun readInitialValues() {
         val manager = mgr ?: return
         try {
-            // Read Temp
             val tVal = if (isFloatTemp) {
                 manager.getProperty(Float::class.java, VehiclePropertyIds.HVAC_TEMPERATURE_SET, tempAreaId)?.value
             } else {
@@ -175,31 +176,50 @@ class CarHvacRepository(
             }
             if (tVal != null) updateAllZones(tVal.toInt())
 
-            // Read Fan
             val fVal = manager.getProperty(Int::class.java, VehiclePropertyIds.HVAC_FAN_SPEED, fanAreaId)?.value
-            if (fVal != null) currentFanSpeed = fVal
-
+            if (fVal != null) {
+                currentFanSpeed = (fVal - fanSpeedOffset).coerceAtLeast(0)
+            }
         } catch (e: Exception) {
             Log.w(HVAC_TAG, "Initial read failed", e)
         }
     }
-
-    // --- Interface Implementation ---
 
     private fun updateAllZones(tempInt: Int) {
         globalTemp = tempInt
         zoneTemps.keys.forEach { zoneTemps[it] = tempInt }
     }
 
-    override fun getZoneTemperature(zone: BodyZone): Int = zoneTemps[zone] ?: globalTemp
+    // --- Fan Direction Implementation (Standard VHAL) ---
+    override fun setFanDirection(direction: FanDirection) {
+        val manager = mgr ?: return
+        if (!_ready.value) return
 
+        // 1. Determine the target bitmask value
+        val targetValue = when (direction) {
+            FanDirection.FRONTAL -> FAN_DIR_FACE
+            FanDirection.FRONTAL_FEET -> FAN_DIR_FACE or FAN_DIR_FLOOR // 0x3
+            FanDirection.FEET -> FAN_DIR_FLOOR
+            FanDirection.FEET_WINDSHIELD -> FAN_DIR_FLOOR or FAN_DIR_DEFROST // 0x6
+        }
+
+        try {
+            // 2. Set the property on the MAIN fan area ID (not area 1, 2, 3)
+            manager.setProperty(Int::class.java, VehiclePropertyIds.HVAC_FAN_DIRECTION, fanAreaId, targetValue)
+            Log.d(HVAC_TAG, "Set Fan Direction Value -> $targetValue (Area $fanAreaId)")
+        } catch (e: Exception) {
+            Log.e(HVAC_TAG, "Failed to set Fan Direction $targetValue", e)
+        }
+    }
+
+    // --- Standard Getters/Setters ---
+    override fun getZoneTemperature(zone: BodyZone): Int = zoneTemps[zone] ?: globalTemp
     override fun setZoneTemperature(zone: BodyZone, temp: Int) {
         val snapped = snapToSupported(temp.toFloat()).toInt()
         zoneTemps[zone] = snapped
         globalTemp = snapped
         writeTemperature(snapped.toFloat())
     }
-
     override fun adjustZoneTemperature(zone: BodyZone, delta: Int) {
         val current = (zoneTemps[zone] ?: globalTemp).toFloat()
         val snapped = snapToSupported(current + delta).toInt()
@@ -207,38 +227,31 @@ class CarHvacRepository(
         globalTemp = snapped
         writeTemperature(snapped.toFloat())
     }
-
     override fun getGlobalTemperature(): Int = globalTemp
-
     override fun setGlobalTemperature(temp: Int) {
         val snapped = snapToSupported(temp.toFloat()).toInt()
         updateAllZones(snapped)
         writeTemperature(snapped.toFloat())
     }
-
     override fun warm() {
         val step = 1.0f
         val next = snapToSupported(getGlobalTemperature().toFloat() + step).toInt()
         setGlobalTemperature(next)
     }
-
     override fun cool() {
         val step = 1.0f
         val next = snapToSupported(getGlobalTemperature().toFloat() - step).toInt()
         setGlobalTemperature(next)
     }
-
-    // Fan Implementation
     override fun getFanSpeed(): Int = currentFanSpeed
-
-    override fun setFanSpeed(speed: Int) {
+    override fun setFanSpeed(uiSpeed: Int) {
         val manager = mgr ?: return
         if (!_ready.value) return
-
+        val carSpeed = uiSpeed + fanSpeedOffset
         try {
-            manager.setProperty(Int::class.java, VehiclePropertyIds.HVAC_FAN_SPEED, fanAreaId, speed)
-            currentFanSpeed = speed
-            Log.d(HVAC_TAG, "Set Fan Speed -> $speed")
+            manager.setProperty(Int::class.java, VehiclePropertyIds.HVAC_FAN_SPEED, fanAreaId, carSpeed)
+            currentFanSpeed = uiSpeed
+            Log.d(HVAC_TAG, "Set Fan Speed -> $carSpeed")
         } catch (e: Exception) {
             Log.e(HVAC_TAG, "Failed to set fan speed", e)
         }
@@ -262,15 +275,10 @@ class CarHvacRepository(
     private fun snapToSupported(requestedC: Float): Float {
         val clamped = requestedC.coerceIn(minTemp.toFloat(), maxTemp.toFloat())
         val steps = ((clamped - minTemp) / incrementC).roundToInt()
-        val snapped = minTemp + steps * incrementC
-        return snapped.coerceIn(minTemp.toFloat(), maxTemp.toFloat())
+        return minTemp + steps * incrementC
     }
 
     fun disconnect() {
-        try {
-            hvacCallback?.let { mgr?.unregisterCallback(it) }
-            car?.disconnect()
-            connected.set(false)
-        } catch (e: Exception) { }
+        try { hvacCallback?.let { mgr?.unregisterCallback(it) }; car?.disconnect(); connected.set(false) } catch (e: Exception) { }
     }
 }
