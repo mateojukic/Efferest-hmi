@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cached
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,8 +67,8 @@ class MainActivity : ComponentActivity() {
                         Column(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(24.dp), // Increased padding to ensure it's not cut off
-                            horizontalAlignment = Alignment.End // Align items to the right
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.End
                         ) {
                             // Reset Button
                             SmallFloatingActionButton(
@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = Color.Black,
-                                modifier = Modifier.size(56.dp) // Ensure explicit size
+                                modifier = Modifier.size(56.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Refresh,
@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // Cycle Version Button
+                            // Cycle Version Button (2. CHANGE: Icon replaced)
                             SmallFloatingActionButton(
                                 onClick = { viewModel.cycleVersion() },
                                 containerColor = Color.DarkGray,
@@ -97,8 +97,8 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.size(56.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.Cached,
-                                    contentDescription = "Cycle Version",
+                                    imageVector = Icons.Filled.ArrowForward,
+                                    contentDescription = "Next Version",
                                     tint = Color.White
                                 )
                             }
