@@ -38,12 +38,6 @@ fun VersionAView(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // --- Study Configuration ---
-    val defaultTemp = 21
-    val deltaTemp = 3
-    val coolingTarget = defaultTemp - deltaTemp // 18°C
-    val heatingTarget = defaultTemp + deltaTemp // 24°C
-
     LaunchedEffect(Unit) {
         SoundEffects.ensureInit(context)
     }
@@ -76,7 +70,7 @@ fun VersionAView(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Select Comfort Zones",
+                    text = "Mir ist...",
                     color = Color.LightGray,
                     fontSize = 18.sp,
                     modifier = Modifier.padding(bottom = 24.dp)
@@ -88,48 +82,41 @@ fun VersionAView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // --- WARM MANNEQUIN (Left Visual) ---
-                    // "I feel Warm" -> Action: Cool Down to 18°C
+                    // "I feel Warm" -> Action: Cool Down (Blue Action)
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy((-25).dp)
                     ) {
-                        Text("WARM", color = warmColor, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
+                        Text("WARM", color = warmColor, fontSize = 14.sp, modifier = Modifier.padding(bottom = 28.dp))
 
                         MannequinPart(
                             imageResId = R.drawable.img_warm_head,
-                            isActive = uiState.zoneActions[BodyZone.UPPER] == ZoneAction.WARM_ACTIVE,
+                            isActive = uiState.zoneActions[BodyZone.UPPER] == ZoneAction.COLD_ACTIVE,
                             height = 126.dp,
                             onClick = {
-                                viewModel.toggleCold(BodyZone.UPPER)
-                                viewModel.setTargetTemperature(coolingTarget)
-                                viewModel.triggerFanBoost() // Trigger fan boost
-
+                                viewModel.handleZoneTouch(BodyZone.UPPER, isWarm = false)
                                 SoundEffects.playBeep()
-                                showStatus("Kühle Kopf... ($coolingTarget°C)", coldColor)
+                                showStatus("Kühle Kopf...", coldColor)
                             }
                         )
                         MannequinPart(
                             imageResId = R.drawable.img_warm_body,
-                            isActive = uiState.zoneActions[BodyZone.MIDDLE] == ZoneAction.WARM_ACTIVE,
+                            isActive = uiState.zoneActions[BodyZone.MIDDLE] == ZoneAction.COLD_ACTIVE,
                             height = 162.dp,
                             onClick = {
-                                viewModel.toggleCold(BodyZone.MIDDLE)
-                                viewModel.setTargetTemperature(coolingTarget)
-                                viewModel.triggerFanBoost() // Trigger fan boost
+                                viewModel.handleZoneTouch(BodyZone.MIDDLE, isWarm = false)
                                 SoundEffects.playBeep()
-                                showStatus("Kühle Körper... ($coolingTarget°C)", coldColor)
+                                showStatus("Kühle Körper...", coldColor)
                             }
                         )
                         MannequinPart(
                             imageResId = R.drawable.img_warm_feet,
-                            isActive = uiState.zoneActions[BodyZone.LOWER] == ZoneAction.WARM_ACTIVE,
+                            isActive = uiState.zoneActions[BodyZone.LOWER] == ZoneAction.COLD_ACTIVE,
                             height = 150.dp,
                             onClick = {
-                                viewModel.toggleCold(BodyZone.LOWER)
-                                viewModel.setTargetTemperature(coolingTarget)
-                                viewModel.triggerFanBoost() // Trigger fan boost
+                                viewModel.handleZoneTouch(BodyZone.LOWER, isWarm = false)
                                 SoundEffects.playBeep()
-                                showStatus("Kühle Füße... ($coolingTarget°C)", coldColor)
+                                showStatus("Kühle Füße...", coldColor)
                             }
                         )
                     }
@@ -137,48 +124,41 @@ fun VersionAView(
                     Spacer(modifier = Modifier.width(64.dp))
 
                     // --- COLD MANNEQUIN (Right Visual) ---
-                    // "I feel Cold" -> Action: Heat Up to 24°C
+                    // "I feel Cold" -> Action: Heat Up (Red Action)
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy((-25).dp)
                     ) {
-                        Text("COLD", color = coldColor, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
+                        Text("KALT", color = coldColor, fontSize = 14.sp, modifier = Modifier.padding(bottom = 28.dp))
 
                         MannequinPart(
                             imageResId = R.drawable.img_cold_head,
-                            isActive = uiState.zoneActions[BodyZone.UPPER] == ZoneAction.COLD_ACTIVE,
+                            isActive = uiState.zoneActions[BodyZone.UPPER] == ZoneAction.WARM_ACTIVE,
                             height = 126.dp,
                             onClick = {
-                                viewModel.toggleWarm(BodyZone.UPPER)
-                                viewModel.setTargetTemperature(heatingTarget)
-                                viewModel.triggerFanBoost() // Trigger fan boost
-
+                                viewModel.handleZoneTouch(BodyZone.UPPER, isWarm = true)
                                 SoundEffects.playBeep()
-                                showStatus("Beheize Kopf... ($heatingTarget°C)", warmColor)
+                                showStatus("Beheize Kopf...", warmColor)
                             }
                         )
                         MannequinPart(
                             imageResId = R.drawable.img_cold_body,
-                            isActive = uiState.zoneActions[BodyZone.MIDDLE] == ZoneAction.COLD_ACTIVE,
+                            isActive = uiState.zoneActions[BodyZone.MIDDLE] == ZoneAction.WARM_ACTIVE,
                             height = 162.dp,
                             onClick = {
-                                viewModel.toggleWarm(BodyZone.MIDDLE)
-                                viewModel.setTargetTemperature(heatingTarget)
-                                viewModel.triggerFanBoost() // Trigger fan boost
+                                viewModel.handleZoneTouch(BodyZone.MIDDLE, isWarm = true)
                                 SoundEffects.playBeep()
-                                showStatus("Beheize Körper... ($heatingTarget°C)", warmColor)
+                                showStatus("Beheize Körper...", warmColor)
                             }
                         )
                         MannequinPart(
                             imageResId = R.drawable.img_cold_feet,
-                            isActive = uiState.zoneActions[BodyZone.LOWER] == ZoneAction.COLD_ACTIVE,
+                            isActive = uiState.zoneActions[BodyZone.LOWER] == ZoneAction.WARM_ACTIVE,
                             height = 150.dp,
                             onClick = {
-                                viewModel.toggleWarm(BodyZone.LOWER)
-                                viewModel.setTargetTemperature(heatingTarget)
-                                viewModel.triggerFanBoost() // Trigger fan boost
+                                viewModel.handleZoneTouch(BodyZone.LOWER, isWarm = true)
                                 SoundEffects.playBeep()
-                                showStatus("Beheize Füße... ($heatingTarget°C)", warmColor)
+                                showStatus("Beheize Füße...", warmColor)
                             }
                         )
                     }
@@ -207,34 +187,18 @@ fun MannequinPart(
     height: Dp,
     onClick: () -> Unit
 ) {
-    var isHighlighted by remember { mutableStateOf(false) }
-
-    val isFullyVisible = isActive || isHighlighted
-
     val alpha by animateFloatAsState(
-        targetValue = if (isFullyVisible) 1.0f else 0.4f,
+        targetValue = if (isActive) 1.0f else 0.4f,
         label = "alpha"
     )
 
     val scale by animateFloatAsState(
-        targetValue = if (isFullyVisible) 1.1f else 1.0f,
+        targetValue = if (isActive) 1.1f else 1.0f,
         label = "scale"
     )
 
     val width = 180.dp
     val shape = RoundedCornerShape(12.dp)
-
-    fun handleClick() {
-        onClick()
-        isHighlighted = true
-    }
-
-    LaunchedEffect(isHighlighted) {
-        if (isHighlighted) {
-            delay(2000)
-            isHighlighted = false
-        }
-    }
 
     Box(
         modifier = Modifier
@@ -246,7 +210,7 @@ fun MannequinPart(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
-            ) { handleClick() },
+            ) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Image(

@@ -61,7 +61,7 @@ fun VersionBView(
                     zone = zone,
                     active = action == ZoneAction.WARM_ACTIVE,
                     onClick = {
-                        viewModel.toggleWarm(zone)
+                        //viewModel.toggleWarm(zone)
                         SoundEffects.playBeep()
                         val msg = "Warm toggled ${zoneLabel(zone)}"
                         Log.d(HVAC_TAG, msg)
@@ -73,7 +73,7 @@ fun VersionBView(
                     zone = zone,
                     active = action == ZoneAction.COLD_ACTIVE,
                     onClick = {
-                        viewModel.toggleCold(zone)
+                        //viewModel.toggleCold(zone)
                         SoundEffects.playBeep()
                         val msg = "Cold toggled ${zoneLabel(zone)}"
                         Log.d(HVAC_TAG, msg)
