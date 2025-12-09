@@ -72,10 +72,24 @@ class HvacViewModel(
     }
 
     // --- Temperature Controls ---
-    fun toggleWarm(zone: BodyZone) { repo.warm(); pushGlobalTemp() }
-    fun toggleCold(zone: BodyZone) { repo.cool(); pushGlobalTemp() }
+    fun toggleWarm(zone: BodyZone) {
+        // Modified: In Version A, this now implies setting specific target 24°C
+        setTargetTemperature(24)
+    }
+
+    fun toggleCold(zone: BodyZone) {
+        // Modified: In Version A, this now implies setting specific target 18°C
+        setTargetTemperature(18)
+    }
+
     fun increaseGlobalTemp() { repo.warm(); pushGlobalTemp() }
     fun decreaseGlobalTemp() { repo.cool(); pushGlobalTemp() }
+
+    // New helper for direct setting (used by Version A logic)
+    fun setTargetTemperature(temp: Int) {
+        repo.setGlobalTemperature(temp)
+        pushGlobalTemp()
+    }
 
     private fun pushGlobalTemp() {
         _uiState.update { s -> s.copy(globalTemperature = repo.getGlobalTemperature()) }
@@ -100,11 +114,8 @@ class HvacViewModel(
 
     // --- Reset Logic ---
     fun resetToDefaults() {
-        // 1. Set Temp to 21
         repo.setGlobalTemperature(21)
-        // 2. Set Fan to Level 2 (low Fan)
         repo.setFanSpeed(2)
-
         refreshState()
     }
 }
