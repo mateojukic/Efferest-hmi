@@ -25,7 +25,7 @@ data class HvacUiState(
     val minTemp: Int = 16,
     val maxTemp: Int = 28,
     val zoneActions: Map<BodyZone, ZoneAction> = BodyZone.values().associateWith { ZoneAction.NONE },
-    val fanSpeed: Int = 0, // 0 = Off, 1-5 = Levels
+    val fanSpeed: Int = 0,
     val fanDirection: FanDirection = FanDirection.FRONTAL
 )
 
@@ -40,7 +40,8 @@ class HvacViewModel(
             globalTemperature = repo.getGlobalTemperature(),
             minTemp = repo.minTemp,
             maxTemp = repo.maxTemp,
-            zoneActions = BodyZone.values().associateWith { ZoneAction.NONE }
+            zoneActions = BodyZone.values().associateWith { ZoneAction.NONE },
+            fanSpeed = repo.getFanSpeed()
         )
     )
     val uiState: StateFlow<HvacUiState> = _uiState
@@ -49,15 +50,20 @@ class HvacViewModel(
         (repo as? com.example.efferest_hmi.data.CarHvacRepository)?.let { carRepo ->
             viewModelScope.launch {
                 carRepo.connect()
-                _uiState.update { s ->
-                    s.copy(
-                        globalTemperature = repo.getGlobalTemperature(),
-                        zoneTemperatures = BodyZone.values().associateWith { repo.getZoneTemperature(it) },
-                        minTemp = repo.minTemp,
-                        maxTemp = repo.maxTemp
-                    )
-                }
+                refreshState()
             }
+        }
+    }
+
+    private fun refreshState() {
+        _uiState.update { s ->
+            s.copy(
+                globalTemperature = repo.getGlobalTemperature(),
+                zoneTemperatures = BodyZone.values().associateWith { repo.getZoneTemperature(it) },
+                minTemp = repo.minTemp,
+                maxTemp = repo.maxTemp,
+                fanSpeed = repo.getFanSpeed()
+            )
         }
     }
 
@@ -65,41 +71,40 @@ class HvacViewModel(
         _uiState.update { s -> s.copy(version = s.version.next()) }
     }
 
-    fun toggleWarm(zone: BodyZone) {
-        repo.warm()
-        pushGlobalTemp()
-    }
+    // --- Temperature Controls ---
+    fun toggleWarm(zone: BodyZone) { repo.warm(); pushGlobalTemp() }
+    fun toggleCold(zone: BodyZone) { repo.cool(); pushGlobalTemp() }
+    fun increaseGlobalTemp() { repo.warm(); pushGlobalTemp() }
+    fun decreaseGlobalTemp() { repo.cool(); pushGlobalTemp() }
 
-    fun toggleCold(zone: BodyZone) {
-        repo.cool()
-        pushGlobalTemp()
-    }
-
-    fun increaseGlobalTemp() {
-        repo.warm()
-        pushGlobalTemp()
-    }
-
-    fun decreaseGlobalTemp() {
-        repo.cool()
-        pushGlobalTemp()
+    private fun pushGlobalTemp() {
+        _uiState.update { s -> s.copy(globalTemperature = repo.getGlobalTemperature()) }
     }
 
     // --- Fan Controls ---
-
     fun setFanSpeed(level: Int) {
-        _uiState.update { it.copy(fanSpeed = level.coerceIn(0, 5)) }
+        val safeLevel = level.coerceIn(0, 5)
+        repo.setFanSpeed(safeLevel)
+        _uiState.update { it.copy(fanSpeed = repo.getFanSpeed()) }
     }
 
     fun setFanDirection(direction: FanDirection) {
         _uiState.update { state ->
-            // Logic: If fan was OFF (0), jump to Level 1 when direction is pressed.
             val newSpeed = if (state.fanSpeed == 0) 1 else state.fanSpeed
+            if (newSpeed != state.fanSpeed) {
+                repo.setFanSpeed(newSpeed)
+            }
             state.copy(fanDirection = direction, fanSpeed = newSpeed)
         }
     }
 
-    private fun pushGlobalTemp() {
-        _uiState.update { s -> s.copy(globalTemperature = repo.getGlobalTemperature()) }
+    // --- Reset Logic ---
+    fun resetToDefaults() {
+        // 1. Set Temp to 21
+        repo.setGlobalTemperature(21)
+        // 2. Set Fan to Level 2 (low Fan)
+        repo.setFanSpeed(2)
+
+        refreshState()
     }
 }

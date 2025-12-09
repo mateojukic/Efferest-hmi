@@ -5,10 +5,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cached
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
@@ -28,6 +33,7 @@ import com.example.efferest_hmi.ui.components.VersionAView
 import com.example.efferest_hmi.ui.components.VersionBView
 import com.example.efferest_hmi.ui.components.VersionCView
 import com.example.efferest_hmi.ui.theme.EfferestTheme
+import com.example.efferest_hmi.util.SoundEffects
 
 class MainActivity : ComponentActivity() {
 
@@ -50,24 +56,52 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
+                        // 1. Main Content Layer
                         when (uiState.version) {
                             UIVersion.VERSION_A -> VersionAView(viewModel)
                             UIVersion.VERSION_B -> VersionBView(viewModel)
                             UIVersion.VERSION_C -> VersionCView(viewModel)
                         }
 
-                        SmallFloatingActionButton(
+                        // 2. Floating Action Buttons Layer (Aligned Bottom End)
+                        Column(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(end = 16.dp, bottom = 16.dp),
-                            onClick = { viewModel.cycleVersion() },
-                            containerColor = Color.DarkGray,
-                            contentColor = Color.White
+                                .padding(24.dp), // Increased padding to ensure it's not cut off
+                            horizontalAlignment = Alignment.End // Align items to the right
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.Cached,
-                                contentDescription = "Cycle Version"
-                            )
+                            // Reset Button
+                            SmallFloatingActionButton(
+                                onClick = {
+                                    viewModel.resetToDefaults()
+                                    SoundEffects.playBeep()
+                                },
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = Color.Black,
+                                modifier = Modifier.size(56.dp) // Ensure explicit size
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = "Default Settings",
+                                    tint = Color.Black
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Cycle Version Button
+                            SmallFloatingActionButton(
+                                onClick = { viewModel.cycleVersion() },
+                                containerColor = Color.DarkGray,
+                                contentColor = Color.White,
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Cached,
+                                    contentDescription = "Cycle Version",
+                                    tint = Color.White
+                                )
+                            }
                         }
                     }
                 }
