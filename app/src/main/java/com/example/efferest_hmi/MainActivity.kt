@@ -63,11 +63,11 @@ class MainActivity : ComponentActivity() {
                             UIVersion.VERSION_C -> VersionCView(viewModel)
                         }
 
-                        // 2. Floating Action Buttons Layer (Aligned Bottom End)
+                        // 2. Floating Action Buttons Layer (Aligned Center Right)
                         Column(
                             modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(24.dp),
+                                .align(Alignment.CenterEnd)
+                                .padding(end = 24.dp), // Add some padding from the edge
                             horizontalAlignment = Alignment.End
                         ) {
                             // Reset Button
@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // Cycle Version Button (2. CHANGE: Icon replaced)
+                            // Cycle Version Button
                             SmallFloatingActionButton(
                                 onClick = { viewModel.cycleVersion() },
                                 containerColor = Color.DarkGray,
