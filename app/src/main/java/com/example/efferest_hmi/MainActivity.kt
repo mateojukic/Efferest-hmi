@@ -1,6 +1,7 @@
 package com.example.efferest_hmi
 
 import android.os.Bundle
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -24,6 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.efferest_hmi.data.CarHvacRepository
@@ -47,6 +51,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 1. Hide System Bars for Fullscreen
+        hideSystemBars()
+
         setContent {
             EfferestTheme {
                 val uiState by viewModel.uiState.collectAsState()
@@ -63,49 +71,61 @@ class MainActivity : ComponentActivity() {
                             UIVersion.VERSION_C -> VersionCView(viewModel)
                         }
 
-                        // 2. Floating Action Buttons Layer (Aligned Center Right)
-                        Column(
+                        // 2. Floating Action Buttons Layer
+                        // Wrapper Box to enforce CenterEnd alignment for the button column
+                        Box(
                             modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .padding(end = 24.dp), // Add some padding from the edge
-                            horizontalAlignment = Alignment.End
+                                .fillMaxSize()
+                                .padding(end = 24.dp), // Global padding for this layer
+                            contentAlignment = Alignment.CenterEnd // Explicit alignment
                         ) {
-                            // Reset Button
-                            SmallFloatingActionButton(
-                                onClick = {
-                                    viewModel.resetToDefaults()
-                                    SoundEffects.playBeep()
-                                },
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = Color.Black,
-                                modifier = Modifier.size(56.dp)
+                            Column(
+                                horizontalAlignment = Alignment.End
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Refresh,
-                                    contentDescription = "Default Settings",
-                                    tint = Color.Black
-                                )
-                            }
+                                // Reset Button
+                                SmallFloatingActionButton(
+                                    onClick = {
+                                        viewModel.resetToDefaults()
+                                        SoundEffects.playBeep()
+                                    },
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = Color.Black,
+                                    modifier = Modifier.size(56.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Refresh,
+                                        contentDescription = "Default Settings",
+                                        tint = Color.Black
+                                    )
+                                }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.height(24.dp))
 
-                            // Cycle Version Button
-                            SmallFloatingActionButton(
-                                onClick = { viewModel.cycleVersion() },
-                                containerColor = Color.DarkGray,
-                                contentColor = Color.White,
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowForward,
-                                    contentDescription = "Next Version",
-                                    tint = Color.White
-                                )
+                                // Cycle Version Button
+                                SmallFloatingActionButton(
+                                    onClick = { viewModel.cycleVersion() },
+                                    containerColor = Color.DarkGray,
+                                    contentColor = Color.White,
+                                    modifier = Modifier.size(56.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ArrowForward,
+                                        contentDescription = "Next Version",
+                                        tint = Color.White
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun hideSystemBars() {
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
     }
 }

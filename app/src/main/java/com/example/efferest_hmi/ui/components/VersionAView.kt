@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,6 +39,12 @@ fun VersionAView(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
+    // --- Study Configuration ---
+    val defaultTemp = 21
+    val deltaTemp = 3
+    val coolingTarget = defaultTemp - deltaTemp // 18°C
+    val heatingTarget = defaultTemp + deltaTemp // 24°C
+
     LaunchedEffect(Unit) {
         SoundEffects.ensureInit(context)
     }
@@ -54,6 +61,9 @@ fun VersionAView(
 
     val warmColor = Color(0xFFE57373) // Red-ish
     val coldColor = Color(0xFF64B5F6) // Blue-ish
+
+    // Unified button height for all parts (Same size)
+    val buttonHeight = 160.dp
 
     Row(modifier = Modifier.fillMaxSize()) {
 
@@ -72,8 +82,12 @@ fun VersionAView(
                 Text(
                     text = "Mir ist...",
                     color = Color.LightGray,
-                    fontSize = 18.sp,
-                    modifier = Modifier.padding(bottom = 24.dp)
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .padding(bottom = 24.dp)
+                        .background(Color.DarkGray, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 )
 
                 Row(
@@ -85,14 +99,15 @@ fun VersionAView(
                     // "I feel Warm" -> Action: Cool Down (Blue Action)
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy((-25).dp)
+                        // Removed negative spacing (-25.dp) to fix overlap. Using 8.dp for separation.
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        Text("WARM", color = warmColor, fontSize = 14.sp, modifier = Modifier.padding(bottom = 28.dp))
+                        Text("WARM", color = warmColor, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
 
                         MannequinPart(
                             imageResId = R.drawable.img_warm_head,
                             isActive = uiState.zoneActions[BodyZone.UPPER] == ZoneAction.COLD_ACTIVE,
-                            height = 126.dp,
+                            height = buttonHeight,
                             onClick = {
                                 viewModel.handleZoneTouch(BodyZone.UPPER, isWarm = false)
                                 SoundEffects.playBeep()
@@ -102,7 +117,7 @@ fun VersionAView(
                         MannequinPart(
                             imageResId = R.drawable.img_warm_body,
                             isActive = uiState.zoneActions[BodyZone.MIDDLE] == ZoneAction.COLD_ACTIVE,
-                            height = 162.dp,
+                            height = buttonHeight,
                             onClick = {
                                 viewModel.handleZoneTouch(BodyZone.MIDDLE, isWarm = false)
                                 SoundEffects.playBeep()
@@ -112,7 +127,7 @@ fun VersionAView(
                         MannequinPart(
                             imageResId = R.drawable.img_warm_feet,
                             isActive = uiState.zoneActions[BodyZone.LOWER] == ZoneAction.COLD_ACTIVE,
-                            height = 150.dp,
+                            height = buttonHeight,
                             onClick = {
                                 viewModel.handleZoneTouch(BodyZone.LOWER, isWarm = false)
                                 SoundEffects.playBeep()
@@ -127,14 +142,15 @@ fun VersionAView(
                     // "I feel Cold" -> Action: Heat Up (Red Action)
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy((-25).dp)
+                        // Removed negative spacing (-25.dp) to fix overlap. Using 8.dp for separation.
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        Text("KALT", color = coldColor, fontSize = 14.sp, modifier = Modifier.padding(bottom = 28.dp))
+                        Text("KALT", color = coldColor, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
 
                         MannequinPart(
                             imageResId = R.drawable.img_cold_head,
                             isActive = uiState.zoneActions[BodyZone.UPPER] == ZoneAction.WARM_ACTIVE,
-                            height = 126.dp,
+                            height = buttonHeight,
                             onClick = {
                                 viewModel.handleZoneTouch(BodyZone.UPPER, isWarm = true)
                                 SoundEffects.playBeep()
@@ -144,7 +160,7 @@ fun VersionAView(
                         MannequinPart(
                             imageResId = R.drawable.img_cold_body,
                             isActive = uiState.zoneActions[BodyZone.MIDDLE] == ZoneAction.WARM_ACTIVE,
-                            height = 162.dp,
+                            height = buttonHeight,
                             onClick = {
                                 viewModel.handleZoneTouch(BodyZone.MIDDLE, isWarm = true)
                                 SoundEffects.playBeep()
@@ -154,7 +170,7 @@ fun VersionAView(
                         MannequinPart(
                             imageResId = R.drawable.img_cold_feet,
                             isActive = uiState.zoneActions[BodyZone.LOWER] == ZoneAction.WARM_ACTIVE,
-                            height = 150.dp,
+                            height = buttonHeight,
                             onClick = {
                                 viewModel.handleZoneTouch(BodyZone.LOWER, isWarm = true)
                                 SoundEffects.playBeep()
@@ -197,6 +213,7 @@ fun MannequinPart(
         label = "scale"
     )
 
+    // Using same width for uniform look
     val width = 180.dp
     val shape = RoundedCornerShape(12.dp)
 
