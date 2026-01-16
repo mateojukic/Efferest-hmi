@@ -121,7 +121,7 @@ fun VersionAView(
                             onClick = {
                                 viewModel.handleZoneTouch(BodyZone.MIDDLE, isWarm = false)
                                 SoundEffects.playBeep()
-                                showStatus("Kühle Körper...", coldColor)
+                                showStatus("Kühle Oberkörper...", coldColor)
                             }
                         )
                         MannequinPart(
