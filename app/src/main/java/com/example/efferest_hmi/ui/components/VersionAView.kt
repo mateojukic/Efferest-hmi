@@ -63,7 +63,7 @@ fun VersionAView(
     val coldColor = Color(0xFF64B5F6) // Blue-ish
 
     // Unified button height for all parts (Same size)
-    val buttonHeight = 160.dp
+    val buttonHeight = 150.dp
 
     Row(modifier = Modifier.fillMaxSize()) {
 

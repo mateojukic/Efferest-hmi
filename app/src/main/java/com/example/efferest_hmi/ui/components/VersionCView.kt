@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,6 +22,9 @@ import com.example.efferest_hmi.ui.FanDirection
 import com.example.efferest_hmi.ui.HvacViewModel
 import com.example.efferest_hmi.util.SoundEffects
 import kotlinx.coroutines.launch
+
+// Define a constant size for all square buttons
+private val buttonSize = 150.dp
 
 @Composable
 fun VersionCView(
@@ -35,6 +39,10 @@ fun VersionCView(
     val activeHighlight = Color(0xFF80CBC4)
     val inactiveGrey = Color(0xFF424242)
 
+    // Calculate font size relative to button size
+    val density = LocalDensity.current
+    val tempButtonFontSize = with(density) { (buttonSize / 3).toSp() }
+
     Row(modifier = Modifier.fillMaxSize()) {
 
         // LEFT HALF (Controls)
@@ -48,7 +56,7 @@ fun VersionCView(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
-                modifier = Modifier.widthIn(max = 600.dp) // Slightly wider for 150dp buttons
+                modifier = Modifier.widthIn(max = 600.dp)
             ) {
 
                 // 1. TEMPERATURE CONTAINER
@@ -73,9 +81,9 @@ fun VersionCView(
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = coldColor),
                             shape = RoundedCornerShape(24.dp),
-                            modifier = Modifier.size(width = 120.dp, height = 120.dp)
+                            modifier = Modifier.size(buttonSize)
                         ) {
-                            Text("-", fontSize = 56.sp, fontWeight = FontWeight.Bold)
+                            Text("-", fontSize = tempButtonFontSize, fontWeight = FontWeight.Bold)
                         }
 
                         Text(
@@ -92,16 +100,16 @@ fun VersionCView(
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = warmColor),
                             shape = RoundedCornerShape(24.dp),
-                            modifier = Modifier.size(width = 120.dp, height = 120.dp)
+                            modifier = Modifier.size(buttonSize)
                         ) {
-                            Text("+", fontSize = 56.sp, fontWeight = FontWeight.Bold)
+                            Text("+", fontSize = tempButtonFontSize, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // 2. FAN CONTROL CONTAINER
+                // 2. FAN DIRECTION CONTAINER
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -110,10 +118,8 @@ fun VersionCView(
                         .background(panelBackground)
                         .padding(24.dp)
                 ) {
-                    // --- Fan Direction Header ---
-                    Text("Fan Direction", color = Color.Gray, fontSize = 16.sp, modifier = Modifier.padding(bottom = 12.dp))
 
-                    // --- Fan Direction Buttons (Row of 3 - Removed Defrost) ---
+                    // --- Fan Direction Buttons ---
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -140,39 +146,43 @@ fun VersionCView(
                             onClick = { viewModel.setFanDirection(FanDirection.FEET); SoundEffects.playBeep() }
                         )
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                    // --- Fan Speed Header ---
-                    Text("Fan Speed", color = Color.Gray, fontSize = 16.sp, modifier = Modifier.padding(bottom = 12.dp))
+                // 3. FAN SPEED CONTAINER
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(panelBackground)
+                        .padding(24.dp)
+                ) {
 
-                    // --- Fan Speed Buttons (Low, Mid, High) ---
+                    // --- Fan Speed Buttons ---
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // LOW = Level 2
                         FanSpeedButton(
-                            label = "LOW",
+                            iconRes = R.drawable.fan_low, // Using user-provided PNG
                             isActive = uiState.fanSpeed == 2,
                             activeColor = activeHighlight,
                             inactiveColor = inactiveGrey,
                             onClick = { viewModel.setFanSpeed(2); SoundEffects.playBeep() }
                         )
 
-                        // MID = Level 4
                         FanSpeedButton(
-                            label = "MID",
+                            iconRes = R.drawable.fan_mid, // Using user-provided PNG
                             isActive = uiState.fanSpeed == 4,
                             activeColor = activeHighlight,
                             inactiveColor = inactiveGrey,
                             onClick = { viewModel.setFanSpeed(4); SoundEffects.playBeep() }
                         )
 
-                        // HIGH = Level 6 (or Max)
-                        // Note: If car only supports up to 5, this might clamp to 5 in ViewModel
                         FanSpeedButton(
-                            label = "HIGH",
+                            iconRes = R.drawable.fan_high, // Using user-provided PNG
                             isActive = uiState.fanSpeed >= 5,
                             activeColor = activeHighlight,
                             inactiveColor = inactiveGrey,
@@ -196,12 +206,11 @@ fun FanDirectionButton(
     inactiveColor: Color,
     onClick: () -> Unit
 ) {
-    // Large Square Button: 150dp
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = Modifier
-            .size(120.dp) // SIZE CHANGE
+            .size(buttonSize)
             .clip(RoundedCornerShape(24.dp))
             .background(if (isActive) activeColor else inactiveColor)
             .clickable { onClick() }
@@ -210,33 +219,35 @@ fun FanDirectionButton(
             painter = painterResource(id = iconRes),
             contentDescription = null,
             colorFilter = ColorFilter.tint(if (isActive) Color.Black else Color.LightGray),
-            modifier = Modifier.size(80.dp) // Scaled up icon
+            modifier = Modifier.size(80.dp)
         )
     }
 }
 
 @Composable
 fun FanSpeedButton(
-    label: String,
+    iconRes: Int, // Changed to accept icon resource ID
     isActive: Boolean,
     activeColor: Color,
     inactiveColor: Color,
     onClick: () -> Unit
 ) {
-    // Large Square Button: 150dp
     Box(
         modifier = Modifier
-            .size(120.dp) // SIZE CHANGE
+            .size(buttonSize)
             .clip(RoundedCornerShape(24.dp))
             .background(if (isActive) activeColor else inactiveColor)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isActive) Color.Black else Color.LightGray
+        Image(
+            painter = painterResource(id = iconRes),
+            contentDescription = null,
+            // Assuming white/light grey icons on dark background, or tinted like direction buttons
+            // If the PNGs are colored, remove colorFilter.
+            // Assuming they are monochrome/stencil style:
+            colorFilter = ColorFilter.tint(if (isActive) Color.Black else Color.LightGray),
+            modifier = Modifier.size(80.dp)
         )
     }
 }
